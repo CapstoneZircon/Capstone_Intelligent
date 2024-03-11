@@ -172,7 +172,7 @@ def script_rfid (return_value, status, firebase_DB, env, return_people_list):
             initial = 0
             continue
 
-def script_camera (return_value, status, record_status, firebase_DB, firebase_Bucket, line_info, env):
+def script_camera (return_value, status, record_status, firebase_DB, record_name, line_info, env):
     initial = 0
     error = 0
     initial_record = 0
@@ -196,7 +196,8 @@ def script_camera (return_value, status, record_status, firebase_DB, firebase_Bu
             record_status_value = record_status.get(timeout=7)
             
             if record_status_value == 1 and initial_record == 0:
-                out = cv2.VideoWriter('Abnormal_videos/{}.mp4'.format(datetime.datetime.now().strftime("%Y-%m-%d %H.%M.%S")), fourcc, 30.0, (704, 576))
+                Record_name = record_name.get(timeout=7)
+                out = cv2.VideoWriter('Abnormal_videos/{}.mp4'.format(Record_name), fourcc, 30.0, (704, 576))
                 initial_record = 1
 
             if record_status_value == 1:
@@ -285,8 +286,9 @@ t_rfid.start()
 queue_num_camera = queue.Queue(maxsize = 1)
 queue_camera_status = queue.Queue(maxsize = 1)
 queue_camera_record = queue.Queue(maxsize = 1)
+queue_camera_record_name = queue.Queue(maxsize = 1)
 queue_camera_record.put(0)
-t_camera = threading.Thread(target=script_camera, args=(queue_num_camera, queue_camera_status, queue_camera_record, firebase_db, firebase_bucket, line_info_list, env_dict))
+t_camera = threading.Thread(target=script_camera, args=(queue_num_camera, queue_camera_status, queue_camera_record, firebase_db, queue_camera_record_name, line_info_list, env_dict))
 t_camera.setDaemon(True)
 t_camera.start()
 
@@ -319,6 +321,7 @@ while(True):
                 name_abnormal_time = abnormal_time.strftime("%Y-%m-%d %H.%M.%S.%f")
                 # Tell camera to record
                 queue_camera_record.put(1)
+                queue_camera_record_name.put(name_abnormal_time)
                 
                 if count == 20:
 
@@ -340,7 +343,7 @@ while(True):
                         for person_info in myresult_person_dict:
                             if rfid_people[-1] == int(person_info["PersonCardID"]):
                                 # Post request to firebase Name: last people, Status: abnormal, Note: Get in without permission
-                                firebase_db_doc_ref = firebase_db.collection("RFID_Record").document(datetime.datetime.now().strftime("%Y-%m-%d %H.%M.%S.%f"))
+                                firebase_db_doc_ref = firebase_db.collection("RFID_Record").document(name_abnormal_time)
                                 firebase_db_doc_ref.set({"PersonCardID": int(person_info["PersonCardID"]), 
                                                         "FnameT": person_info["FnameT"], 
                                                         "LnameT": person_info["LnameT"], 
@@ -354,7 +357,7 @@ while(True):
                     
                     elif len(rfid_people) == 0:
                         # Post request to firebase Name: Unknown, Status: abnormal, Note: Get in without permission
-                        firebase_db_doc_ref = firebase_db.collection("RFID_Record").document(datetime.datetime.now().strftime("%Y-%m-%d %H.%M.%S.%f"))
+                        firebase_db_doc_ref = firebase_db.collection("RFID_Record").document(name_abnormal_time)
                         firebase_db_doc_ref.set({"PersonCardID": "Unknown", 
                                                 "FnameT": "Unknown", 
                                                 "LnameT": "", 
@@ -405,7 +408,7 @@ while(True):
                         for person_info in myresult_person_dict:
                             if rfid_people[-1] == int(person_info["PersonCardID"]):
                                 # Post request to firebase Name: last people, Status: abnormal, Note: Get in after work time
-                                firebase_db_doc_ref = firebase_db.collection("RFID_Record").document(datetime.datetime.now().strftime("%Y-%m-%d %H.%M.%S.%f"))
+                                firebase_db_doc_ref = firebase_db.collection("RFID_Record").document(name_abnormal_time)
                                 firebase_db_doc_ref.set({"PersonCardID": int(person_info["PersonCardID"]), 
                                                         "FnameT": person_info["FnameT"], 
                                                         "LnameT": person_info["LnameT"], 
@@ -419,7 +422,7 @@ while(True):
                             
                     elif len(rfid_people) == 0: 
                         # Post request to firebase Name: Unknown, Status: abnormal, Note: Get in after work time
-                        firebase_db_doc_ref = firebase_db.collection("RFID_Record").document(datetime.datetime.now().strftime("%Y-%m-%d %H.%M.%S.%f"))
+                        firebase_db_doc_ref = firebase_db.collection("RFID_Record").document(name_abnormal_time)
                         firebase_db_doc_ref.set({"PersonCardID": "Unknown", 
                                                 "FnameT": "Unknown", 
                                                 "LnameT": "", 
