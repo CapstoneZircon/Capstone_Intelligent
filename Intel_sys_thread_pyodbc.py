@@ -387,6 +387,7 @@ while(True):
                 name_abnormal_time = abnormal_time.strftime("%Y-%m-%d %H.%M.%S.%f")
                 # Tell camera to record
                 queue_camera_record.put(1)
+                queue_camera_record_name.put(name_abnormal_time)
                 
                 if count == 20:
 
