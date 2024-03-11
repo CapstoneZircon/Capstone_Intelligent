@@ -28,9 +28,9 @@ def script_rfid (return_value, status, firebase_DB, env, return_people_list):
                 date_old = datetime.datetime.now().date()
                 # Check number of RFID record one time to assign the variable "old_record_count"
                 # 'DRIVER={ODBC Driver 17 for SQL Server};SERVER=' + server + ',' + port + ';DATABASE=' + database + ';UID='+ username + ';PWD=' + password
-                mydb_only_first = pyodbc.connect('DRIVER={ODBC Driver 17 for SQL Server};SERVER=' + env["SERVER"] + ',' + env["PORT"] + ';DATABASE=' + env["DATABASE"] + ';UID='+ env["USERNAME"] + ';PWD=' + env["PASSWORD"])
+                mydb_only_first = pyodbc.connect('DRIVER={ODBC Driver 17 for SQL Server};SERVER=' + env_dict["SERVER"] + ';DATABASE=' + env_dict["DATABASE"] + ';UID='+ env_dict["USERNAME"] + ';PWD=' + env_dict["PASSWORD"])
                 mycursor_only_first = mydb_only_first.cursor()
-                mycursor_only_first.execute("SELECT PersonCardID, MachID, TimeInOut FROM dbo.ZFP_TimeInOut WHERE MachID = 4 OR MachID = 5")
+                mycursor_only_first.execute("SELECT PersonCardID, MachID, TimeInOut FROM dbo.ZFP_TimeInOut WHERE MachID = 2 OR MachID = 3 ORDER BY TimeInOut DESC")
                 myresult_only_first = mycursor_only_first.fetchall()
                 columns_dict_convert = [column[0] for column in mycursor_only_first.description]
                 mydb_only_first.close()
@@ -42,9 +42,9 @@ def script_rfid (return_value, status, firebase_DB, env, return_people_list):
             timestamp_now = datetime.datetime.now()
             date_now = timestamp_now.date()
             # Check number of RFID record to assign the variable "ีupdated_record_count"
-            mydb = pyodbc.connect('DRIVER={ODBC Driver 17 for SQL Server};SERVER=' + env["SERVER"] + ',' + env["PORT"] + ';DATABASE=' + env["DATABASE"] + ';UID='+ env["USERNAME"] + ';PWD=' + env["PASSWORD"])
+            mydb = pyodbc.connect('DRIVER={ODBC Driver 17 for SQL Server};SERVER=' + env_dict["SERVER"] + ';DATABASE=' + env_dict["DATABASE"] + ';UID='+ env_dict["USERNAME"] + ';PWD=' + env_dict["PASSWORD"])
             mycursor = mydb.cursor()
-            mycursor.execute("SELECT PersonCardID, MachID, TimeInOut FROM dbo.ZFP_TimeInOut WHERE MachID = 4 OR MachID = 5")
+            mycursor.execute("SELECT PersonCardID, MachID, TimeInOut FROM dbo.ZFP_TimeInOut WHERE MachID = 2 OR MachID = 3 ORDER BY TimeInOut DESC")
             myresult = mycursor.fetchall()
             updated_record_count = len(myresult)
 
@@ -71,8 +71,8 @@ def script_rfid (return_value, status, firebase_DB, env, return_people_list):
                 for person in myresult_dict[:num_of_new_record][::-1]:
                     # print(person["PersonCardID"])
                     # print(person["MachID"])
-                    # If it is Yuanterเข้า (4)
-                    if person["MachID"] == 4:
+                    # If it is Yuanterเข้า (2)
+                    if person["MachID"] == 2:
                         # Post record data to fire base
                         for person_info in myresult_person_dict:
                             # print(person_info["PersonCardID"])
@@ -84,6 +84,7 @@ def script_rfid (return_value, status, firebase_DB, env, return_people_list):
                                                          "LnameT": person_info["LnameT"], 
                                                          "TimeInOut": str(datetime.datetime.now()), 
                                                          "Status" : "Check-in",
+                                                         "Event": "",
                                                          "Note": ""})
                                 # print("Post to firebase successful")
 
@@ -92,8 +93,8 @@ def script_rfid (return_value, status, firebase_DB, env, return_people_list):
                             people_list.append(person["PersonCardID"])
                             number_of_people = len(people_list)
 
-                    # If it is Yuanterออก (5)
-                    elif person["MachID"] == 5:
+                    # If it is Yuanterออก (3)
+                    elif person["MachID"] == 3:
                         for person_info in myresult_person_dict:
                             if person["PersonCardID"] == int(person_info["PersonCardID"]):
                                 firebase_db_doc_ref = firebase_DB.collection("RFID_Record").document(datetime.datetime.now().strftime("%Y-%m-%d %H.%M.%S.%f"))
@@ -102,6 +103,7 @@ def script_rfid (return_value, status, firebase_DB, env, return_people_list):
                                                          "LnameT": person_info["LnameT"], 
                                                          "TimeInOut": str(datetime.datetime.now()), 
                                                          "Status" : "Check-out",
+                                                         "Event": "",
                                                          "Note": ""})
                                 # print("Post to firebase successful")
                                 
@@ -113,7 +115,7 @@ def script_rfid (return_value, status, firebase_DB, env, return_people_list):
             mydb.close()
 
             # Empty people list only one time at 6.00 p.m. if there are people who forget to scan out
-            if (len(people_list) != 0) and (timestamp_now >= parse(str(date_now) + " 18:00:00")) and (timestamp_now < parse(str(date_now) + " 18:00:05")) and (empty_people_list == False):
+            if (len(people_list) != 0) and (timestamp_now >= parse(str(date_now) + " 17:40:00")) and (timestamp_now < parse(str(date_now) + " 17:40:05")) and (empty_people_list == False):
 
                 # Convert item in myresult_person to dict
                 myresult_person_dict = []
@@ -131,7 +133,8 @@ def script_rfid (return_value, status, firebase_DB, env, return_people_list):
                                                      "LnameT": person_info["LnameT"], 
                                                      "TimeInOut": str(datetime.datetime.now()), 
                                                      "Status" : "Abnormal",
-                                                     "Note": "This person forgot to scan out when leave Yuanter"})
+                                                     "Event": "This person forgot to scan out when leave Yuanter",
+                                                     "Note": ""})
                             # print("Post to firebase successful")
                 people_list = []
                 number_of_people = len(people_list)
@@ -180,7 +183,7 @@ def script_camera (return_value, status, record_status, firebase_DB, firebase_Bu
     if not cap.isOpened():
         raise Exception("Video device not open")
 
-    fourcc = cv2.VideoWriter_fourcc('M','J','P','G') 
+    fourcc = cv2.VideoWriter_fourcc('M','P','4','V') 
     # out = cv2.VideoWriter(f'{str(datetime.datetime.now())}.avi', fourcc, 40.0, (704, 576))
 
     while(True):
@@ -193,7 +196,7 @@ def script_camera (return_value, status, record_status, firebase_DB, firebase_Bu
             record_status_value = record_status.get(timeout=7)
             
             if record_status_value == 1 and initial_record == 0:
-                out = cv2.VideoWriter('Abnormal_videos/{}.avi'.format(datetime.datetime.now().strftime("%Y-%m-%d %H.%M.%S")), fourcc, 40.0, (704, 576))
+                out = cv2.VideoWriter('Abnormal_videos/{}.mp4'.format(datetime.datetime.now().strftime("%Y-%m-%d %H.%M.%S")), fourcc, 30.0, (704, 576))
                 initial_record = 1
 
             if record_status_value == 1:
@@ -225,7 +228,7 @@ def script_camera (return_value, status, record_status, firebase_DB, firebase_Bu
                 database="yuanter"
             )
             mycursor = mydb_only_first.cursor(dictionary=True)
-            mycursor.execute("SELECT * FROM test_cam")
+            mycursor.execute("SELECT * FROM test_camera")
             myresult = mycursor.fetchall()
             people = myresult[len(myresult)-1]["people"]
             return_value.put(people)
@@ -311,13 +314,16 @@ while(True):
             if (num_rfid < num_camera) and (date_now_8am <= timestamp_now) and (timestamp_now <= date_now_6pm):
                 count += 1
                 reset = 0
+                # Give name of video record
+                abnormal_time = datetime.datetime.now()
+                name_abnormal_time = abnormal_time.strftime("%Y-%m-%d %H.%M.%S.%f")
                 # Tell camera to record
                 queue_camera_record.put(1)
                 
                 if count == 20:
 
                     # Employee personal information
-                    mydb = pyodbc.connect('DRIVER={ODBC Driver 17 for SQL Server};SERVER=' + env_dict["SERVER"] + ',' + env_dict["PORT"] + ';DATABASE=' + env_dict["DATABASE"] + ';UID='+ env_dict["USERNAME"] + ';PWD=' + env_dict["PASSWORD"])
+                    mydb = pyodbc.connect('DRIVER={ODBC Driver 17 for SQL Server};SERVER=' + env_dict["SERVER"] + ';DATABASE=' + env_dict["DATABASE"] + ';UID='+ env_dict["USERNAME"] + ';PWD=' + env_dict["PASSWORD"])
                     mycursor_person = mydb.cursor()
                     mycursor_person.execute("SELECT PersonCardID, FnameT, LnameT FROM dbo.ZFP_Person")
                     myresult_person = mycursor_person.fetchall()
@@ -340,7 +346,8 @@ while(True):
                                                         "LnameT": person_info["LnameT"], 
                                                         "TimeInOut": str(datetime.datetime.now()), 
                                                         "Status" : "Abnormal",
-                                                        "Note": f"Someone get in without permission\nCamera detected ({str(num_camera)}) > RFID detected ({str(num_rfid)})"})
+                                                        "Event": f"Someone gets in without permission\nCamera detected ({str(num_camera)}) > RFID detected ({str(num_rfid)})",
+                                                        "Note": ""})
                                 
                                 #  Send line notify
                                 requests.post(line_url, headers=line_headers, data = {"message": f'Abnormal alert!\nวันที่: {str(datetime.datetime.now().date())}\n เวลา: {datetime.datetime.now().strftime("%H:%M:%S")}'})
@@ -350,10 +357,11 @@ while(True):
                         firebase_db_doc_ref = firebase_db.collection("RFID_Record").document(datetime.datetime.now().strftime("%Y-%m-%d %H.%M.%S.%f"))
                         firebase_db_doc_ref.set({"PersonCardID": "Unknown", 
                                                 "FnameT": "Unknown", 
-                                                "LnameT": "Unknown", 
+                                                "LnameT": "", 
                                                 "TimeInOut": str(datetime.datetime.now()), 
                                                 "Status" : "Abnormal",
-                                                "Note": f"Someone get in without permission\nCamera detected ({str(num_camera)}) > RFID detected ({str(num_rfid)})"})
+                                                "Event": f"Someone gets in without permission\nCamera detected ({str(num_camera)}) > RFID detected ({str(num_rfid)})",
+                                                "Note": ""})
                         
                         #  Send line notify
                         requests.post(line_url, headers=line_headers, data = {"message": f'Abnormal alert!\nวันที่: {str(datetime.datetime.now().date())}\n เวลา: {datetime.datetime.now().strftime("%H:%M:%S")}'})
@@ -368,16 +376,19 @@ while(True):
                     reset = 0
 
             # Condition abnormal out of working time (before 8 a.m. and after 5 p.m.)
-            if ((num_rfid > 0) or (num_camera > 0)) and ((date_now_8am > timestamp_now) or (timestamp_now > date_now_6pm)):
+            if ((num_rfid > 0) or (num_camera > 0)) and ((date_now_8am > timestamp_now) or (timestamp_now > date_now_6pm) or (timestamp_now.strftime("%a") == "Sat") or (timestamp_now.strftime("%a") == "Sun")):
                 count += 1
                 reset = 0
+                # Give name of video record
+                abnormal_time = datetime.datetime.now()
+                name_abnormal_time = abnormal_time.strftime("%Y-%m-%d %H.%M.%S.%f")
                 # Tell camera to record
                 queue_camera_record.put(1)
                 
                 if count == 20:
 
                     # Employee personal information
-                    mydb = pyodbc.connect('DRIVER={ODBC Driver 17 for SQL Server};SERVER=' + env_dict["SERVER"] + ',' + env_dict["PORT"] + ';DATABASE=' + env_dict["DATABASE"] + ';UID='+ env_dict["USERNAME"] + ';PWD=' + env_dict["PASSWORD"])
+                    mydb = pyodbc.connect('DRIVER={ODBC Driver 17 for SQL Server};SERVER=' + env_dict["SERVER"] + ';DATABASE=' + env_dict["DATABASE"] + ';UID='+ env_dict["USERNAME"] + ';PWD=' + env_dict["PASSWORD"])
                     mycursor_person = mydb.cursor()
                     mycursor_person.execute("SELECT PersonCardID, FnameT, LnameT FROM dbo.ZFP_Person")
                     myresult_person = mycursor_person.fetchall()
@@ -400,7 +411,8 @@ while(True):
                                                         "LnameT": person_info["LnameT"], 
                                                         "TimeInOut": str(datetime.datetime.now()), 
                                                         "Status" : "Abnormal",
-                                                        "Note": f"Someone get in after work time\nCamera detected ({str(num_camera)}), RFID detected ({str(num_rfid)})"})
+                                                        "Event": f"Someone gets in outside of work hours\nCamera detected ({str(num_camera)}), RFID detected ({str(num_rfid)})",
+                                                        "Note": ""})
                                 
                                 #  Send line notify
                                 requests.post(line_url, headers=line_headers, data = {"message": f'Abnormal alert!\nวันที่: {str(datetime.datetime.now().date())}\n เวลา: {datetime.datetime.now().strftime("%H:%M:%S")}'})
@@ -410,15 +422,16 @@ while(True):
                         firebase_db_doc_ref = firebase_db.collection("RFID_Record").document(datetime.datetime.now().strftime("%Y-%m-%d %H.%M.%S.%f"))
                         firebase_db_doc_ref.set({"PersonCardID": "Unknown", 
                                                 "FnameT": "Unknown", 
-                                                "LnameT": "Unknown", 
+                                                "LnameT": "", 
                                                 "TimeInOut": str(datetime.datetime.now()), 
                                                 "Status" : "Abnormal",
-                                                "Note": f"Someone get in after work time\nCamera detected ({str(num_camera)}), RFID detected ({str(num_rfid)})"})
+                                                "Event": f"Someone gets in outside of work hours\nCamera detected ({str(num_camera)}), RFID detected ({str(num_rfid)})",
+                                                "Note": ""})
                         
                         #  Send line notify
                         requests.post(line_url, headers=line_headers, data = {"message": f'Abnormal alert!\nวันที่: {str(datetime.datetime.now().date())}\n เวลา: {datetime.datetime.now().strftime("%H:%M:%S")}'})
 
-            elif (num_rfid == 0) and (num_camera == 0) and (date_now_8am > timestamp_now) or (timestamp_now > date_now_6pm):
+            elif (num_rfid == 0) and (num_camera == 0) and ((date_now_8am > timestamp_now) or (timestamp_now > date_now_6pm) or (timestamp_now.strftime("%a") == "Sat") or (timestamp_now.strftime("%a") == "Sun")):
                 reset += 1
                 # Tell camera to stop recording
                 queue_camera_record.put(0)
