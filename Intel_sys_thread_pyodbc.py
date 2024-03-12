@@ -28,9 +28,9 @@ def script_rfid (return_value, status, firebase_DB, env, return_people_list):
                 date_old = datetime.datetime.now().date()
                 # Check number of RFID record one time to assign the variable "old_record_count"
                 # 'DRIVER={ODBC Driver 17 for SQL Server};SERVER=' + server + ',' + port + ';DATABASE=' + database + ';UID='+ username + ';PWD=' + password
-                mydb_only_first = pyodbc.connect('DRIVER={ODBC Driver 17 for SQL Server};SERVER=' + env_dict["SERVER"] + ';DATABASE=' + env_dict["DATABASE"] + ';UID='+ env_dict["USERNAME"] + ';PWD=' + env_dict["PASSWORD"])
+                mydb_only_first = pyodbc.connect('DRIVER={ODBC Driver 17 for SQL Server};SERVER=' + env["SERVER"] + ';DATABASE=' + env["DATABASE"] + ';UID='+ env["USERNAME"] + ';PWD=' + env["PASSWORD"])
                 mycursor_only_first = mydb_only_first.cursor()
-                mycursor_only_first.execute("SELECT PersonCardID, MachID, TimeInOut FROM dbo.ZFP_TimeInOut WHERE MachID = 2 OR MachID = 3 ORDER BY TimeInOut DESC")
+                mycursor_only_first.execute("SELECT PersonCardID, MachID, TimeInOut, ID_TimeInOut FROM dbo.ZFP_TimeInOut WHERE MachID = 2 OR MachID = 3 ORDER BY ID_TimeInOut DESC")
                 myresult_only_first = mycursor_only_first.fetchall()
                 columns_dict_convert = [column[0] for column in mycursor_only_first.description]
                 mydb_only_first.close()
@@ -42,9 +42,9 @@ def script_rfid (return_value, status, firebase_DB, env, return_people_list):
             timestamp_now = datetime.datetime.now()
             date_now = timestamp_now.date()
             # Check number of RFID record to assign the variable "ีupdated_record_count"
-            mydb = pyodbc.connect('DRIVER={ODBC Driver 17 for SQL Server};SERVER=' + env_dict["SERVER"] + ';DATABASE=' + env_dict["DATABASE"] + ';UID='+ env_dict["USERNAME"] + ';PWD=' + env_dict["PASSWORD"])
+            mydb = pyodbc.connect('DRIVER={ODBC Driver 17 for SQL Server};SERVER=' + env["SERVER"] + ';DATABASE=' + env["DATABASE"] + ';UID='+ env["USERNAME"] + ';PWD=' + env["PASSWORD"])
             mycursor = mydb.cursor()
-            mycursor.execute("SELECT PersonCardID, MachID, TimeInOut FROM dbo.ZFP_TimeInOut WHERE MachID = 2 OR MachID = 3 ORDER BY TimeInOut DESC")
+            mycursor.execute("SELECT PersonCardID, MachID, TimeInOut, ID_TimeInOut FROM dbo.ZFP_TimeInOut WHERE MachID = 2 OR MachID = 3 ORDER BY ID_TimeInOut DESC")
             myresult = mycursor.fetchall()
             updated_record_count = len(myresult)
 
@@ -115,7 +115,7 @@ def script_rfid (return_value, status, firebase_DB, env, return_people_list):
             mydb.close()
 
             # Empty people list only one time at 6.00 p.m. if there are people who forget to scan out
-            if (len(people_list) != 0) and (timestamp_now >= parse(str(date_now) + " 17:40:00")) and (timestamp_now < parse(str(date_now) + " 17:40:05")) and (empty_people_list == False):
+            if (len(people_list) != 0) and (timestamp_now >= parse(str(date_now) + " 15:51:00")) and (timestamp_now < parse(str(date_now) + " 15:51:05")) and (empty_people_list == False):
 
                 # Convert item in myresult_person to dict
                 myresult_person_dict = []
@@ -183,7 +183,7 @@ def script_camera (return_value, status, record_status, firebase_DB, record_name
     if not cap.isOpened():
         raise Exception("Video device not open")
 
-    fourcc = cv2.VideoWriter_fourcc('M','P','4','V') 
+    fourcc = cv2.VideoWriter_fourcc('x','2','6','4') 
     # out = cv2.VideoWriter(f'{str(datetime.datetime.now())}.avi', fourcc, 40.0, (704, 576))
 
     while(True):
@@ -193,11 +193,14 @@ def script_camera (return_value, status, record_status, firebase_DB, record_name
             if not ret:
                 print("No receiving frame and streaming ends")
 
-            record_status_value = record_status.get(timeout=7)
+            try:
+                record_status_value = record_status.get(timeout=0.2)
+            except:
+                pass
             
             if record_status_value == 1 and initial_record == 0:
                 Record_name = record_name.get(timeout=7)
-                out = cv2.VideoWriter('Abnormal_videos/{}.mp4'.format(Record_name), fourcc, 30.0, (704, 576))
+                out = cv2.VideoWriter('Abnormal_videos/{}.mp4'.format(Record_name), fourcc, 30.0, (int(cap.get(3)), int(cap.get(4))))
                 initial_record = 1
 
             if record_status_value == 1:
@@ -299,9 +302,21 @@ while(True):
 
         if rfid_status == 1 and camera_status == 1:
         # if rfid_status == 1 :
-            num_rfid = queue_num_rfid.get(timeout=7)
-            num_camera = queue_num_camera.get(timeout=7)
-            rfid_people = queue_rfid_people.get(timeout=7)
+            try:
+                num_rfid = queue_num_rfid.get(timeout=7)
+            except:
+                pass
+
+            try:
+                num_camera = queue_num_camera.get(timeout=7)
+            except:
+                pass
+
+            try:
+                rfid_people = queue_rfid_people.get(timeout=7)
+            except:
+                pass
+
             print(str(num_rfid) + " " + str(num_camera))
 
             # Get current timestamp
@@ -316,14 +331,14 @@ while(True):
             if (num_rfid < num_camera) and (date_now_8am <= timestamp_now) and (timestamp_now <= date_now_6pm):
                 count += 1
                 reset = 0
-                # Give name of video record
-                abnormal_time = datetime.datetime.now()
-                name_abnormal_time = abnormal_time.strftime("%Y-%m-%d %H.%M.%S.%f")
-                # Tell camera to record
-                queue_camera_record.put(1)
-                queue_camera_record_name.put(name_abnormal_time)
                 
                 if count == 20:
+                    # Give name of video record
+                    abnormal_time = datetime.datetime.now()
+                    name_abnormal_time = abnormal_time.strftime("%Y-%m-%d %H.%M.%S.%f")
+                    # Tell camera to record
+                    queue_camera_record.put(1)
+                    queue_camera_record_name.put(name_abnormal_time)
 
                     # Employee personal information
                     mydb = pyodbc.connect('DRIVER={ODBC Driver 17 for SQL Server};SERVER=' + env_dict["SERVER"] + ';DATABASE=' + env_dict["DATABASE"] + ';UID='+ env_dict["USERNAME"] + ';PWD=' + env_dict["PASSWORD"])
@@ -371,10 +386,10 @@ while(True):
 
             elif (num_rfid >= num_camera) and (date_now_8am <= timestamp_now) and (timestamp_now <= date_now_6pm):
                 reset += 1
-                # Tell camera to stop recording
-                queue_camera_record.put(0)
                 
                 if reset == 20:
+                    # Tell camera to stop recording
+                    queue_camera_record.put(0)
                     count = 0
                     reset = 0
 
@@ -382,14 +397,14 @@ while(True):
             if ((num_rfid > 0) or (num_camera > 0)) and ((date_now_8am > timestamp_now) or (timestamp_now > date_now_6pm) or (timestamp_now.strftime("%a") == "Sat") or (timestamp_now.strftime("%a") == "Sun")):
                 count += 1
                 reset = 0
-                # Give name of video record
-                abnormal_time = datetime.datetime.now()
-                name_abnormal_time = abnormal_time.strftime("%Y-%m-%d %H.%M.%S.%f")
-                # Tell camera to record
-                queue_camera_record.put(1)
-                queue_camera_record_name.put(name_abnormal_time)
                 
                 if count == 20:
+                    # Give name of video record
+                    abnormal_time = datetime.datetime.now()
+                    name_abnormal_time = abnormal_time.strftime("%Y-%m-%d %H.%M.%S.%f")
+                    # Tell camera to record
+                    queue_camera_record.put(1)
+                    queue_camera_record_name.put(name_abnormal_time)
 
                     # Employee personal information
                     mydb = pyodbc.connect('DRIVER={ODBC Driver 17 for SQL Server};SERVER=' + env_dict["SERVER"] + ';DATABASE=' + env_dict["DATABASE"] + ';UID='+ env_dict["USERNAME"] + ';PWD=' + env_dict["PASSWORD"])
@@ -437,10 +452,10 @@ while(True):
 
             elif (num_rfid == 0) and (num_camera == 0) and ((date_now_8am > timestamp_now) or (timestamp_now > date_now_6pm) or (timestamp_now.strftime("%a") == "Sat") or (timestamp_now.strftime("%a") == "Sun")):
                 reset += 1
-                # Tell camera to stop recording
-                queue_camera_record.put(0)
 
                 if reset == 20:
+                    # Tell camera to stop recording
+                    queue_camera_record.put(0)
                     count = 0
                     reset = 0
             
